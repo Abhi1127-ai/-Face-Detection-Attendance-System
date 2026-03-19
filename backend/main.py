@@ -42,6 +42,9 @@ app.add_middleware(
 from backend.routes.auth_routes import router as auth_router
 app.include_router(auth_router)
 
+from backend.routes.enrollment_routes import router as enrollment_router
+app.include_router(enrollment_router)
+
 # ─────────────────────────────────────────
 # Test Route
 # ─────────────────────────────────────────

@@ -1,118 +1,117 @@
-import os
-import pickle
-import numpy as np
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
-from backend.database.models import Student
-from backend.config import STUDENT_FACES_DIR, EMBEDDINGS_PATH, ENROLLMENT_PHOTOS
+from typing import List
+import cv2
+import numpy as np
 
-# ─────────────────────────────────────────
-# Embeddings Load/Save
-# ─────────────────────────────────────────
+from backend.database.db import get_db
+from backend.middleware.auth_middleware import get_current_teacher
+from backend.services.enrollment_service import (
+    enroll_student,
+    get_all_students,
+    delete_student
+)
+from pydantic import BaseModel
 
-def load_embeddings() -> tuple:
-    """Pickle file se embeddings load karo"""
-    if not os.path.exists(EMBEDDINGS_PATH):
-        return [], []
-    with open(EMBEDDINGS_PATH, "rb") as f:
-        data = pickle.load(f)
-    return data["ids"], data["encodings"]
-
-
-def save_embeddings(known_ids: list, known_encodings: list):
-    """Embeddings pickle file mein save karo"""
-    with open(EMBEDDINGS_PATH, "wb") as f:
-        pickle.dump({
-            "ids": known_ids,
-            "encodings": known_encodings
-        }, f)
-    print(f"[EMBEDDINGS] Saved {len(known_ids)} students!")
+router = APIRouter(
+    prefix="/enrollment",
+    tags=["Enrollment"]
+)
 
 
 # ─────────────────────────────────────────
-# Student Enrollment
+# Pydantic Schema
 # ─────────────────────────────────────────
+class StudentResponse(BaseModel):
+    id: str
+    name: str
+    roll_no: str
+    photo_path: str | None
 
-def enroll_student(
-    db: Session,
+    class Config:
+        from_attributes = True
+
+
+# ─────────────────────────────────────────
+# Get All Students
+# ─────────────────────────────────────────
+@router.get("/students", response_model=List[StudentResponse])
+async def get_students(
+    db: Session = Depends(get_db),
+    teacher=Depends(get_current_teacher)
+):
+    """Saare enrolled students ki list"""
+    students = get_all_students(db)
+    return students
+
+
+# ─────────────────────────────────────────
+# Enroll Student
+# ─────────────────────────────────────────
+@router.post("/student", status_code=status.HTTP_201_CREATED)
+async def enroll(
     name: str,
     roll_no: str,
-    images: list  # list of numpy arrays (frames)
-) -> Student:
+    images: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    teacher=Depends(get_current_teacher)
+):
     """
-    Student ko enroll karo:
-    1. DB mein save karo
-    2. Face embeddings nikalo
-    3. Average embedding pickle mein save karo
+    Naya student enroll karo
+    - name: Student ka naam
+    - roll_no: Unique roll number
+    - images: 3-5 photos (alag alag angles se)
     """
-    from insightface.app import FaceAnalysis
+    # Images ko numpy arrays mein convert karo
+    np_images = []
+    for image in images:
+        file_bytes = await image.read()
+        np_arr = np.frombuffer(file_bytes, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        if frame is not None:
+            np_images.append(frame)
 
-    # InsightFace app initialize karo
-    app = FaceAnalysis(name='buffalo_l')
-    app.prepare(ctx_id=0, det_size=(640, 640))
+    if not np_images:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Koi valid image nahi mili!"
+        )
 
-    # Embeddings nikalo saari images se
-    embeddings = []
-    for img in images:
-        faces = app.get(img)
-        if faces:
-            embeddings.append(faces[0].embedding)
-
-    if not embeddings:
-        raise ValueError("Kisi bhi image mein face detect nahi hua!")
-
-    # Average embedding nikalo
-    avg_embedding = np.mean(embeddings, axis=0)
-
-    # Student folder banao agar exist nahi karta
-    os.makedirs(STUDENT_FACES_DIR, exist_ok=True)
-
-    # DB mein student save karo
-    student = Student(
-        name=name,
-        roll_no=roll_no,
-        photo_path=f"{STUDENT_FACES_DIR}/{roll_no}.jpg"
-    )
-    db.add(student)
-    db.commit()
-    db.refresh(student)
-
-    # Existing embeddings load karo aur naya add karo
-    known_ids, known_encodings = load_embeddings()
-    known_ids.append(student.id)
-    known_encodings.append(avg_embedding)
-    save_embeddings(known_ids, known_encodings)
-
-    print(f"[ENROLLMENT] Student {name} ({roll_no}) enrolled successfully!")
-    return student
+    try:
+        student = enroll_student(
+            db=db,
+            name=name,
+            roll_no=roll_no,
+            images=np_images
+        )
+        return {
+            "message": f"Student {name} successfully enrolled!",
+            "student_id": student.id,
+            "roll_no": student.roll_no
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
-def get_all_students(db: Session) -> list:
-    """Saare enrolled students return karo"""
-    return db.query(Student).all()
+# ─────────────────────────────────────────
+# Delete Student
+# ─────────────────────────────────────────
+@router.delete("/student/{student_id}")
+async def remove_student(
+    student_id: str,
+    db: Session = Depends(get_db),
+    teacher=Depends(get_current_teacher)
+):
+    """Student ko system se remove karo"""
+    success = delete_student(db, student_id)
 
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student nahi mila!"
+        )
 
-def delete_student(db: Session, student_id: str) -> bool:
-    """
-    Student ko delete karo:
-    1. DB se remove karo
-    2. Embedding bhi remove karo
-    """
-    student = db.query(Student).filter(Student.id == student_id).first()
-
-    if not student:
-        return False
-
-    # Embedding remove karo
-    known_ids, known_encodings = load_embeddings()
-    if student.id in known_ids:
-        idx = known_ids.index(student.id)
-        known_ids.pop(idx)
-        known_encodings.pop(idx)
-        save_embeddings(known_ids, known_encodings)
-
-    # DB se delete karo
-    db.delete(student)
-    db.commit()
-
-    print(f"[ENROLLMENT] Student {student.name} deleted!")
-    return True
+    return {"message": "Student successfully removed!"}

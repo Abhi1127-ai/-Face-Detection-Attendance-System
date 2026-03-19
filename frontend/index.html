@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vision Pro | Full Integrated Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .nav-active { background: #2563eb; color: white !important; box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4); }
+        .camera-container { position: relative; border-radius: 2.5rem; overflow: hidden; background: #000; border: 8px solid #fff; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); }
+        video { transform: scaleX(-1); width: 100%; height: 100%; object-fit: cover; }
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #60a5fa; box-shadow: 0 0 20px #60a5fa; animation: scan 3s linear infinite; z-index: 10; display: none; }
+        @keyframes scan { 0%, 100% { top: 5%; } 50% { top: 95%; } }
+        .hidden { display: none; }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex">
+
+    <div id="auth-screen" class="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6">
+        <div class="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-white">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl shadow-lg"><i class="fas fa-fingerprint"></i></div>
+                <h2 id="auth-title" class="text-3xl font-black">Teacher Portal</h2>
+                <p class="text-slate-500 mt-1">Access your class management system</p>
+            </div>
+            <div class="space-y-4">
+                <div id="reg-fields" class="hidden"><input id="auth-name" type="text" placeholder="Full Name" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <input id="auth-email" type="email" placeholder="Email Address" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="auth-pass" type="password" placeholder="Password" class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="submitAuth()" class="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl shadow-xl hover:bg-blue-700 transition-all">Sign In</button>
+                <p class="text-center text-sm font-medium text-slate-500">
+                    <span id="toggle-text">New teacher?</span> <button onclick="toggleAuth()" id="toggle-link" class="text-blue-600 font-bold hover:underline">Create Account</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="w-72 glass m-6 rounded-[2.5rem] flex flex-col p-8 shadow-xl hidden">
+        <div class="flex items-center gap-3 mb-10 px-2">
+            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-brain"></i></div>
+            <h1 class="text-xl font-black tracking-tighter">AI VISION <span class="text-blue-600">PRO</span></h1>
+        </div>
+        <nav class="flex-1 space-y-2">
+            <button onclick="nav('dash')" class="nav-btn nav-active w-full flex items-center gap-4 p-4 rounded-2xl font-bold"><i class="fas fa-th-large"></i> Dashboard</button>
+            <button onclick="nav('enroll')" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white"><i class="fas fa-user-plus"></i> Enrollment</button>
+            <button onclick="nav('live')" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white"><i class="fas fa-video"></i> Live Class</button>
+            <button onclick="nav('admin')" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white"><i class="fas fa-user-shield"></i> Admin Panel</button>
+        </nav>
+        <button onclick="logout()" class="p-4 text-red-500 font-bold border-t border-slate-100 flex items-center gap-3 mt-auto"><i class="fas fa-power-off"></i> Logout</button>
+    </aside>
+
+    <main id="main-content" class="flex-1 p-10 overflow-y-auto hidden">
+
+        <div id="page-dash" class="space-y-8">
+            <h2 class="text-4xl font-black text-slate-800">Analytics Overview</h2>
+            <div class="grid grid-cols-2 gap-8">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border">
+                    <p class="text-slate-400 font-bold text-xs uppercase tracking-widest">Total Database</p>
+                    <h3 id="stat-total" class="text-5xl font-black mt-2">0</h3>
+                </div>
+                <div id="timer-card" class="bg-blue-600 p-8 rounded-[2.5rem] shadow-xl text-white hidden">
+                    <p class="text-blue-100 font-bold text-xs uppercase tracking-widest">Session Countdown</p>
+                    <h3 id="timer-display" class="text-5xl font-black mt-2">00:00</h3>
+                </div>
+            </div>
+            <div class="bg-white p-10 rounded-[2.5rem] shadow-sm border"><canvas id="mainChart" height="100"></canvas></div>
+        </div>
+
+        <div id="page-enroll" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-3xl font-bold">Student Registration</h2>
+                <div class="flex gap-2">
+                    <input id="new-section-name" type="text" placeholder="New Section Name" class="p-3 border rounded-xl text-sm outline-none w-48">
+                    <button onclick="addNewSection()" class="bg-slate-800 text-white px-6 py-2 rounded-xl text-sm font-bold">+ Add</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-12 gap-10">
+                <div class="col-span-7">
+                    <div class="camera-container aspect-video"><video id="enroll-video" autoplay playsinline></video></div>
+                    <div class="mt-4 flex gap-4">
+                        <button onclick="startCam('enroll-video')" class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-bold">1. Start Camera</button>
+                        <button onclick="enrollStudent()" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-100">2. Capture & Save</button>
+                    </div>
+                </div>
+                <div class="col-span-5 bg-white p-8 rounded-[2.5rem] border space-y-4 shadow-sm">
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Select Section</label>
+                        <select id="en-section" class="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold text-slate-700">
+                            <option value="Section A">Section A</option>
+                            <option value="Section B">Section B</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Roll Number</label>
+                        <input id="en-roll" type="number" placeholder="Enter Roll No" class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Full Name</label>
+                        <input id="en-name" type="text" placeholder="Enter Name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-blue-500">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-live" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-3xl font-bold">Smart Session Controller</h2>
+                <div id="status-badge" class="bg-slate-200 px-6 py-2 rounded-full font-bold text-slate-500 uppercase text-xs tracking-widest">STANDBY</div>
+            </div>
+            <div class="grid grid-cols-12 gap-10">
+                <div class="col-span-8 space-y-6">
+                    <div class="camera-container aspect-video"><div id="scan-line" class="scan-line"></div><video id="live-video" autoplay playsinline></video></div>
+                    <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm grid grid-cols-3 gap-6">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Class Time (Mins)</label>
+                            <input id="class-duration" type="number" value="45" min="1" max="120" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-xl outline-none border focus:border-blue-500">
+                        </div>
+                        <div class="col-span-2 flex gap-3 pt-4">
+                            <button onclick="startSession()" class="flex-1 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-[1.02] transition">START SESSION</button>
+                            <button onclick="endSession()" class="flex-1 bg-red-500 text-white rounded-2xl font-black shadow-xl shadow-red-100 hover:scale-[1.02] transition">STOP SESSION</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-4 bg-white p-8 rounded-[2.5rem] border flex flex-col h-full shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-black text-slate-400 text-xs uppercase">Roster Attendance</h3>
+                        <button onclick="runManualScan()" class="text-blue-600 text-xs font-bold hover:underline"><i class="fas fa-camera mr-1"></i> Snap Now</button>
+                    </div>
+                    <div id="live-list" class="space-y-3 overflow-y-auto flex-1 max-h-[480px]"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-admin" class="hidden space-y-8">
+            <h2 class="text-3xl font-bold">Admin Management</h2>
+            <div class="grid grid-cols-2 gap-8">
+                <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                    <h4 class="font-bold mb-4">Attendance Reports</h4>
+                    <button onclick="alert('Downloading CSV...')" class="w-full bg-green-100 text-green-700 py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+                        <i class="fas fa-file-csv"></i> DOWNLOAD CSV LOG
+                    </button>
+                </div>
+                <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                    <h4 class="font-bold mb-4">Section Management</h4>
+                    <p class="text-slate-500 text-sm mb-4">Manage class groups and active rosters.</p>
+                    <button onclick="nav('enroll')" class="text-blue-600 font-bold">Open Enrollment &rarr;</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <canvas id="hidden-canvas" class="hidden"></canvas>
+
+    <script>
+        const API = "http://localhost:8000";
+        let isReg = false;
+        let sessionTimer = null;
+        let presentSet = new Set();
+        let timeLeft = 0;
+
+        // ─── AUTHENTICATION ───
+        function toggleAuth() {
+            isReg = !isReg;
+            document.getElementById('reg-fields').classList.toggle('hidden', !isReg);
+            document.getElementById('auth-title').innerText = isReg ? "Create Account" : "Teacher Portal";
+            document.getElementById('toggle-text').innerText = isReg ? "Already a teacher?" : "New teacher?";
+            document.getElementById('toggle-link').innerText = isReg ? "Sign In" : "Create Account";
+        }
+
+        async function submitAuth() {
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            try {
+                if(isReg) {
+                    await axios.post(`${API}/auth/register`, { name: document.getElementById('auth-name').value, email, password: pass });
+                    alert("Account Created! Please Sign In."); toggleAuth();
+                } else {
+                    const fd = new URLSearchParams(); fd.append('username', email); fd.append('password', pass);
+                    const res = await axios.post(`${API}/auth/login`, fd);
+                    localStorage.setItem('token', res.data.access_token);
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('sidebar').classList.remove('hidden');
+                    document.getElementById('main-content').classList.remove('hidden');
+                    initDashboard();
+                }
+            } catch(e) { alert("Error: Check your credentials"); }
+        }
+
+        // ─── NAVIGATION ───
+        function nav(p) {
+            document.querySelectorAll('main > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById(`page-${p}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('nav-active', 'text-white'));
+            event.currentTarget.classList.add('nav-active', 'text-white');
+            if(p === 'dash') updateStats();
+        }
+
+        async function startCam(id) {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            document.getElementById(id).srcObject = stream;
+        }
+
+        // ─── ENROLLMENT WITH SECTIONS ───
+        function addNewSection() {
+            const name = document.getElementById('new-section-name').value;
+            if(!name) return;
+            const select = document.getElementById('en-section');
+            const opt = document.createElement('option');
+            opt.value = name; opt.text = name;
+            select.add(opt);
+            document.getElementById('new-section-name').value = '';
+            alert(`Section ${name} Added!`);
+        }
+
+        async function enrollStudent() {
+            const vid = document.getElementById('enroll-video');
+            const can = document.getElementById('hidden-canvas');
+            can.width = vid.videoWidth; can.height = vid.videoHeight;
+            can.getContext('2d').drawImage(vid, 0, 0);
+
+            can.toBlob(async (blob) => {
+                const fd = new FormData();
+                fd.append('images', blob, 'face.jpg');
+                const name = document.getElementById('en-name').value;
+                const roll = document.getElementById('en-roll').value;
+                const section = document.getElementById('en-section').value;
+
+                try {
+                    await axios.post(`${API}/enrollment/student?name=${name}&roll_no=${roll}&section=${section}`, fd, {
+                        headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`}
+                    });
+                    alert(`Roll No ${roll} Enrolled in ${section}!`);
+                } catch(e) { alert("Enrollment Failed"); }
+            }, 'image/jpeg');
+        }
+
+        // ─── SMART SESSION LOGIC (START, END, MIDDLE) ───
+        async function startSession() {
+            const dur = parseInt(document.getElementById('class-duration').value);
+            if(dur < 1) return alert("Enter valid minutes");
+
+            await startCam('live-video');
+            document.getElementById('scan-line').style.display = 'block';
+            document.getElementById('status-badge').innerText = "LIVE SESSION";
+            document.getElementById('status-badge').className = "bg-green-100 px-6 py-2 rounded-full font-bold text-green-600 uppercase text-xs";
+            document.getElementById('timer-card').classList.remove('hidden');
+
+            timeLeft = dur * 60;
+            const interval = Math.floor(timeLeft / 4); // Captures 3 times in the middle
+
+            // CAPTURE 1: AT START
+            runManualScan();
+
+            sessionTimer = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+
+                // CAPTURE 2: AT CALCULATED INTERVALS (Middle)
+                if(timeLeft % interval === 0 && timeLeft > 0) runManualScan();
+                if(timeLeft <= 0) endSession();
+            }, 1000);
+        }
+
+        async function endSession() {
+            // CAPTURE 3: AT END
+            await runManualScan();
+            clearInterval(sessionTimer);
+            document.getElementById('scan-line').style.display = 'none';
+            document.getElementById('status-badge').innerText = "CLASS FINISHED";
+            document.getElementById('status-badge').className = "bg-blue-100 px-6 py-2 rounded-full font-bold text-blue-600 uppercase text-xs";
+            alert("Session Ended. Final Attendance Captured.");
+        }
+
+        async function runManualScan() {
+            const vid = document.getElementById('live-video');
+            const can = document.getElementById('hidden-canvas');
+            can.width = vid.videoWidth; can.height = vid.videoHeight;
+            can.getContext('2d').drawImage(vid, 0, 0);
+            can.toBlob(async (blob) => {
+                const fd = new FormData(); fd.append('file', blob, 'snap.jpg');
+                try {
+                    const res = await axios.post(`${API}/attendance/recognize`, fd, {
+                        headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`}
+                    });
+                    res.data.present_students.forEach(name => {
+                        if(!presentSet.has(name)) {
+                            presentSet.add(name);
+                            updateAttendanceList(name);
+                        }
+                    });
+                } catch(e) {}
+            }, 'image/jpeg');
+        }
+
+        function updateAttendanceList(name) {
+            const div = document.createElement('div');
+            div.className = "p-4 bg-blue-50 border-l-4 border-blue-600 rounded-2xl font-bold text-blue-900 shadow-sm animate-bounce flex justify-between items-center";
+            div.innerHTML = `<span><i class="fas fa-check-circle mr-2"></i> ${name}</span> <span class="text-[9px] uppercase text-blue-400">Marked Present</span>`;
+            document.getElementById('live-list').prepend(div);
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(timeLeft / 60); const s = timeLeft % 60;
+            document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+
+        // ─── DASHBOARD ───
+        function initDashboard() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: ['M','T','W','T','F'], datasets: [{ label: 'Presence Rate', data: [85,95,78,100,92], borderColor: '#2563eb', tension: 0.4, fill: true, backgroundColor: 'rgba(37,99,235,0.05)' }] }, options: { plugins: { legend: { display: false } } } });
+            updateStats();
+        }
+
+        async function updateStats() {
+            try {
+                const res = await axios.get(`${API}/enrollment/students`, { headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`} });
+                document.getElementById('stat-total').innerText = res.data.length;
+            } catch(e) {}
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+    </script>
+</body>
+</html>
