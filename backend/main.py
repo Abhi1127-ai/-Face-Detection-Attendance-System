@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database.db import init_db
+from backend.routes.attendance_routes import router as attendance_router
 
 
 
@@ -44,6 +45,7 @@ app.include_router(auth_router)
 
 from backend.routes.enrollment_routes import router as enrollment_router
 app.include_router(enrollment_router)
+app.include_router(attendance_router)
 
 # ─────────────────────────────────────────
 # Test Route
