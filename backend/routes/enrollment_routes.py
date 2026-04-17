@@ -7,7 +7,8 @@ import numpy as np
 from backend.database.db import get_db
 from backend.middleware.auth_middleware import get_current_teacher
 from backend.services.enrollment_service import (
-    enroll_student,
+    enroll_student_via_upload,
+    enroll_student_via_camera,
     get_all_students,
     delete_student
 )
@@ -41,15 +42,14 @@ async def get_students(
     teacher=Depends(get_current_teacher)
 ):
     """Saare enrolled students ki list"""
-    students = get_all_students(db)
-    return students
+    return get_all_students(db)
 
 
 # ─────────────────────────────────────────
-# Enroll Student
+# Option 1 — Image Upload Se Enroll
 # ─────────────────────────────────────────
-@router.post("/student", status_code=status.HTTP_201_CREATED)
-async def enroll(
+@router.post("/student/upload", status_code=status.HTTP_201_CREATED)
+async def enroll_via_upload(
     name: str,
     roll_no: str,
     images: List[UploadFile] = File(...),
@@ -57,12 +57,9 @@ async def enroll(
     teacher=Depends(get_current_teacher)
 ):
     """
-    Naya student enroll karo
-    - name: Student ka naam
-    - roll_no: Unique roll number
-    - images: 3-5 photos (alag alag angles se)
+    Image upload se student enroll karo
+    3-5 photos upload karo alag alag angles se
     """
-    # Images ko numpy arrays mein convert karo
     np_images = []
     for image in images:
         file_bytes = await image.read()
@@ -78,14 +75,50 @@ async def enroll(
         )
 
     try:
-        student = enroll_student(
+        student = enroll_student_via_upload(
             db=db,
             name=name,
             roll_no=roll_no,
             images=np_images
         )
         return {
-            "message": f"Student {name} successfully enrolled!",
+            "message": f"Student {name} successfully enrolled via upload!",
+            "student_id": student.id,
+            "roll_no": student.roll_no
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# ─────────────────────────────────────────
+# Option 2 — Camera Se Enroll
+# ─────────────────────────────────────────
+@router.post("/student/camera", status_code=status.HTTP_201_CREATED)
+async def enroll_via_camera(
+    name: str,
+    roll_no: str,
+    num_photos: int = 3,
+    db: Session = Depends(get_db),
+    teacher=Depends(get_current_teacher)
+):
+    """
+    Camera se student enroll karo
+    - Camera window khulegi
+    - 'S' dabao photo lene ke liye
+    - 'Q' dabao quit karne ke liye
+    """
+    try:
+        student = enroll_student_via_camera(
+            db=db,
+            name=name,
+            roll_no=roll_no,
+            num_photos=num_photos
+        )
+        return {
+            "message": f"Student {name} successfully enrolled via camera!",
             "student_id": student.id,
             "roll_no": student.roll_no
         }
@@ -105,7 +138,7 @@ async def remove_student(
     db: Session = Depends(get_db),
     teacher=Depends(get_current_teacher)
 ):
-    """Student ko system se remove karo"""
+    """Delete the student from the system"""
     success = delete_student(db, student_id)
 
     if not success:

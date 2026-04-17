@@ -1,25 +1,23 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from backend.database.db import init_db
-from backend.routes.attendance_routes import router as attendance_router
+from backend.services.recognition_service import load_embeddings_to_memory
+from backend.routes.auth_routes import router as auth_router
+from backend.routes.enrollment_routes import router as enrollment_router
+from backend.routes.recognition_routes import router as recognition_router
+from backend.routes.teacher_route import router as teacher_router
 
 
-
-
-# ─────────────────────────────────────────
-# Lifespan — DB initialize karo
-# ─────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    load_embeddings_to_memory()
     print("[APP] Server started successfully!")
     yield
 
 
-# ─────────────────────────────────────────
-# App Initialize
-# ─────────────────────────────────────────
 app = FastAPI(
     title="AI Face Recognition Attendance System",
     description="70 students ke liye AI based attendance system",
@@ -27,11 +25,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-
-
-# ─────────────────────────────────────────
-# CORS — Frontend se requests allow karo
-# ─────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,16 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from backend.routes.auth_routes import router as auth_router
+# ── Routes first ──
 app.include_router(auth_router)
-
-from backend.routes.enrollment_routes import router as enrollment_router
 app.include_router(enrollment_router)
-app.include_router(attendance_router)
+app.include_router(recognition_router)
+app.include_router(teacher_router)
 
-# ─────────────────────────────────────────
-# Test Route
-# ─────────────────────────────────────────
-@app.get("/")
+# ── Health check ──
+@app.get("/health")
 async def root():
     return {"message": "Attendance System API is running! 🚀"}
+
+# ── Static files LAST — warna "/" saari routes swallow kar lega ──
+app.mount("/", StaticFiles(directory="backend/frontend", html=True), name="frontend")

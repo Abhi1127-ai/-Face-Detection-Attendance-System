@@ -142,4 +142,3 @@ class AttendanceOverride(Base):
     # Relations
     attendance = relationship("Attendance", back_populates="overrides")
     teacher    = relationship("Teacher", back_populates="overrides")
-

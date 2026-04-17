@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vision Pro | Full Integrated Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
+        .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.3); }
+        .nav-active { background: #2563eb; color: white !important; box-shadow: 0 10px 20px -5px rgba(37,99,235,0.4); }
+        .camera-container { position: relative; border-radius: 2.5rem; overflow: hidden; background: #111; border: 8px solid #fff; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #60a5fa; box-shadow: 0 0 20px #60a5fa; animation: scan 3s linear infinite; z-index: 10; display: none; }
+        @keyframes scan { 0%,100% { top: 5%; } 50% { top: 95%; } }
+        #detection-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; z-index: 5; }
+        /* Camera placeholder when off */
+        .cam-placeholder { position: absolute; inset: 0; display: flex; flex-col; align-items: center; justify-content: center; background: #0f172a; z-index: 1; }
+        .cam-placeholder i { font-size: 3rem; color: #334155; margin-bottom: 1rem; }
+        .cam-placeholder p { color: #64748b; font-weight: 700; font-size: 0.85rem; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex">
+
+<!-- ─── AUTH SCREEN ─── -->
+<div id="auth-screen" class="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6">
+    <div class="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-white">
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl shadow-lg">
+                <i class="fas fa-fingerprint"></i>
+            </div>
+            <h2 id="auth-title" class="text-3xl font-black">Teacher Portal</h2>
+            <p class="text-slate-500 mt-1">Access your class management system</p>
+        </div>
+        <div class="space-y-4">
+            <div id="reg-fields" class="hidden">
+                <input id="auth-name" type="text" placeholder="Full Name"
+                    class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <input id="auth-email" type="email" placeholder="Email Address"
+                class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+            <input id="auth-pass" type="password" placeholder="Password"
+                class="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+            <p id="auth-error" class="text-red-500 text-sm text-center hidden"></p>
+            <button onclick="submitAuth()"
+                class="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl shadow-xl hover:bg-blue-700 transition-all">
+                Sign In
+            </button>
+            <p class="text-center text-sm font-medium text-slate-500">
+                <span id="toggle-text">New teacher?</span>
+                <button onclick="toggleAuth()" id="toggle-link" class="text-blue-600 font-bold hover:underline ml-1">Create Account</button>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ─── SIDEBAR ─── -->
+<aside id="sidebar" class="w-72 glass m-6 rounded-[2.5rem] flex flex-col p-8 shadow-xl hidden">
+    <div class="flex items-center gap-3 mb-10 px-2">
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+            <i class="fas fa-brain"></i>
+        </div>
+        <h1 class="text-xl font-black tracking-tighter">AI VISION <span class="text-blue-600">PRO</span></h1>
+    </div>
+    <nav class="flex-1 space-y-2">
+        <button onclick="nav('dash', this)" class="nav-btn nav-active w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-white">
+            <i class="fas fa-th-large w-4"></i> Dashboard
+        </button>
+        <button onclick="nav('enroll', this)" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white">
+            <i class="fas fa-user-plus w-4"></i> Enrollment
+        </button>
+        <button onclick="nav('live', this)" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white">
+            <i class="fas fa-video w-4"></i> Live Class
+        </button>
+        <button onclick="nav('admin', this)" class="nav-btn w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-slate-400 hover:bg-white">
+            <i class="fas fa-user-shield w-4"></i> Admin Panel
+        </button>
+    </nav>
+    <div class="border-t border-slate-100 pt-4">
+        <p class="text-xs text-slate-400 font-bold px-2 mb-1">Logged in as</p>
+        <p id="teacher-name" class="text-sm font-bold px-2 text-slate-700"></p>
+    </div>
+    <button onclick="logout()" class="p-4 text-red-500 font-bold flex items-center gap-3 mt-4 hover:bg-red-50 rounded-2xl transition">
+        <i class="fas fa-power-off"></i> Logout
+    </button>
+</aside>
+
+<!-- ─── MAIN CONTENT ─── -->
+<main id="main-content" class="flex-1 p-10 overflow-y-auto hidden">
+
+    <!-- DASHBOARD PAGE -->
+    <div id="page-dash" class="space-y-8">
+        <h2 class="text-4xl font-black text-slate-800">Analytics Overview</h2>
+        <div class="grid grid-cols-2 gap-8">
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border">
+                <p class="text-slate-400 font-bold text-xs uppercase tracking-widest">Total Students</p>
+                <h3 id="stat-total" class="text-5xl font-black mt-2">0</h3>
+            </div>
+            <div id="timer-card" class="bg-blue-600 p-8 rounded-[2.5rem] shadow-xl text-white hidden">
+                <p class="text-blue-100 font-bold text-xs uppercase tracking-widest">Session Countdown</p>
+                <h3 id="timer-display" class="text-5xl font-black mt-2">00:00</h3>
+            </div>
+        </div>
+        <div class="bg-white p-10 rounded-[2.5rem] shadow-sm border">
+            <canvas id="mainChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- ENROLLMENT PAGE -->
+    <div id="page-enroll" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+            <h2 class="text-3xl font-bold">Student Registration</h2>
+        </div>
+        <div class="grid grid-cols-12 gap-10">
+            <div class="col-span-7 space-y-4">
+                <!-- Camera -->
+                <div class="camera-container aspect-video">
+                    <!-- Placeholder shown when camera is off -->
+                    <div id="enroll-placeholder" class="cam-placeholder flex flex-col">
+                        <i class="fas fa-camera-slash"></i>
+                        <p>Camera band hai — Start Camera dabao</p>
+                    </div>
+                    <video id="enroll-video" autoplay playsinline style="display:none;"></video>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="startEnrollCam()"
+                        id="enroll-cam-btn"
+                        class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-700 transition">
+                        <i class="fas fa-camera mr-2"></i> Start Camera
+                    </button>
+                    <button onclick="enrollStudent()"
+                        class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition">
+                        <i class="fas fa-user-check mr-2"></i> Capture & Save
+                    </button>
+                </div>
+                <!-- Enrolled list -->
+                <div class="bg-white p-6 rounded-[2rem] border shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-black text-slate-700">Enrolled Students</h3>
+                        <button onclick="loadStudents()" class="text-blue-600 text-sm font-bold hover:underline">
+                            <i class="fas fa-sync mr-1"></i> Refresh
+                        </button>
+                    </div>
+                    <div id="students-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                </div>
+            </div>
+            <div class="col-span-5 bg-white p-8 rounded-[2.5rem] border space-y-4 shadow-sm">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Roll Number</label>
+                    <input id="en-roll" type="number" placeholder="Enter Roll No"
+                        class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-blue-500 mt-1">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Full Name</label>
+                    <input id="en-name" type="text" placeholder="Enter Name"
+                        class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-blue-500 mt-1">
+                </div>
+                <div class="bg-blue-50 p-4 rounded-2xl">
+                    <p class="text-blue-700 text-sm font-bold">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Camera se ek photo li jaayegi aur system mein save hogi!
+                    </p>
+                </div>
+                <!-- Capture preview -->
+                <div id="capture-preview" class="hidden">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-2">Captured Photo</p>
+                    <img id="capture-img" class="w-full rounded-2xl border" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIVE CLASS PAGE -->
+    <div id="page-live" class="hidden space-y-6">
+        <div class="flex justify-between items-center">
+            <h2 class="text-3xl font-bold">Smart Session Controller</h2>
+            <div id="status-badge"
+                class="bg-slate-200 px-6 py-2 rounded-full font-bold text-slate-500 uppercase text-xs tracking-widest">
+                STANDBY
+            </div>
+        </div>
+        <div class="grid grid-cols-12 gap-10">
+            <div class="col-span-8 space-y-6">
+                <!-- Camera -->
+                <div class="camera-container aspect-video">
+                    <div id="scan-line" class="scan-line"></div>
+                    <!-- Placeholder -->
+                    <div id="live-placeholder" class="cam-placeholder flex flex-col">
+                        <i class="fas fa-video-slash"></i>
+                        <p>Session start karo — camera automatically on hoga</p>
+                    </div>
+                    <video id="live-video" autoplay playsinline style="display:none;"></video>
+                    <canvas id="detection-canvas"></canvas>
+                </div>
+                <!-- Controls -->
+                <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm grid grid-cols-3 gap-6">
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Subject</label>
+                        <input id="class-subject" type="text" placeholder="e.g. Maths"
+                            class="w-full p-3 bg-slate-50 rounded-xl font-bold outline-none border focus:border-blue-500 mt-1">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Duration (Mins)</label>
+                        <input id="class-duration" type="number" value="45" min="1" max="120"
+                            class="w-full p-3 bg-slate-50 rounded-xl font-bold text-xl outline-none border focus:border-blue-500 mt-1">
+                    </div>
+                    <div class="flex gap-3 pt-5">
+                        <button onclick="startSession()"
+                            class="flex-1 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 hover:bg-green-700 hover:scale-[1.02] transition text-sm py-3">
+                            <i class="fas fa-play mr-1"></i> START
+                        </button>
+                        <button onclick="endSession()"
+                            class="flex-1 bg-red-500 text-white rounded-2xl font-black shadow-xl shadow-red-100 hover:bg-red-600 hover:scale-[1.02] transition text-sm py-3">
+                            <i class="fas fa-stop mr-1"></i> STOP
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Attendance panel -->
+            <div class="col-span-4 bg-white p-8 rounded-[2.5rem] border flex flex-col shadow-sm" style="max-height: 620px;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-black text-slate-400 text-xs uppercase">Live Attendance</h3>
+                    <button onclick="runManualScan()" class="text-blue-600 text-xs font-bold hover:underline">
+                        <i class="fas fa-camera mr-1"></i> Snap Now
+                    </button>
+                </div>
+                <div id="live-list" class="space-y-3 overflow-y-auto flex-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN PAGE -->
+    <div id="page-admin" class="hidden space-y-8">
+        <h2 class="text-3xl font-bold">Admin Management</h2>
+        <div class="grid grid-cols-2 gap-8">
+            <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                <h4 class="font-bold mb-4">Attendance Report</h4>
+                <input id="report-class-id" type="text" placeholder="Enter Class ID"
+                    class="w-full p-4 bg-slate-50 rounded-2xl outline-none border mb-4 focus:border-blue-500">
+                <button onclick="downloadReport()"
+                    class="w-full bg-green-100 text-green-700 py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-green-200 transition">
+                    <i class="fas fa-file-csv"></i> DOWNLOAD CSV
+                </button>
+            </div>
+            <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                <h4 class="font-bold mb-4">Quick Actions</h4>
+                <div class="space-y-3">
+                    <button onclick="nav('enroll', null)"
+                        class="w-full text-left p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition">
+                        <i class="fas fa-user-plus mr-2"></i> Go to Enrollment
+                    </button>
+                    <button onclick="nav('live', null)"
+                        class="w-full text-left p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition">
+                        <i class="fas fa-video mr-2"></i> Go to Live Class
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<!-- Hidden canvas for frame capture -->
+<canvas id="hidden-canvas" style="display:none;"></canvas>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────
+const API = "http://127.0.0.1:8000";
+let token = null;
+let isReg = false;
+let sessionTimer = null;
+let presentSet = new Set();
+let timeLeft = 0;
+let currentClassId = null;
+let liveDetectionInterval = null;
+let enrollStream = null;
+let liveStream = null;
+
+// Axios default auth header setter
+function setAuthHeader() {
+    if (token) axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────
+function toggleAuth() {
+    isReg = !isReg;
+    document.getElementById('reg-fields').classList.toggle('hidden', !isReg);
+    document.getElementById('auth-title').innerText   = isReg ? "Create Account"  : "Teacher Portal";
+    document.getElementById('toggle-text').innerText  = isReg ? "Already teacher?" : "New teacher?";
+    document.getElementById('toggle-link').innerText  = isReg ? "Sign In"          : "Create Account";
+    document.querySelector('button[onclick="submitAuth()"]').innerText = isReg ? "Register" : "Sign In";
+}
+
+function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.innerText = msg;
+    el.classList.remove('hidden');
+}
+
+async function submitAuth() {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass  = document.getElementById('auth-pass').value;
+    document.getElementById('auth-error').classList.add('hidden');
+
+    if (!email || !pass) { showAuthError("Email aur Password zaroori hai!"); return; }
+
+    try {
+        if (isReg) {
+            const name = document.getElementById('auth-name').value.trim();
+            if (!name) { showAuthError("Name bhi daalo!"); return; }
+            await axios.post(`${API}/auth/register`, { name, email, password: pass });
+            alert("Account created! Ab sign in karo.");
+            toggleAuth();
+        } else {
+            // OAuth2 expects form data, not JSON
+            const fd = new URLSearchParams();
+            fd.append('username', email);
+            fd.append('password', pass);
+            const res = await axios.post(`${API}/auth/login`, fd, {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            token = res.data.access_token;
+            localStorage.setItem('token', token);
+            localStorage.setItem('teacher_name', res.data.teacher_name || email);
+            setAuthHeader();
+            enterApp(res.data.teacher_name || email);
+        }
+    } catch (e) {
+        const msg = e.response?.data?.detail || "Login failed — email ya password galat hai!";
+        showAuthError(msg);
+    }
+}
+
+function enterApp(name) {
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('sidebar').classList.remove('hidden');
+    document.getElementById('main-content').classList.remove('hidden');
+    document.getElementById('teacher-name').innerText = name;
+    initDashboard();
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────
+function nav(p, btn) {
+    document.querySelectorAll('main > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById(`page-${p}`).classList.remove('hidden');
+    document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('nav-active', 'text-white');
+        b.classList.add('text-slate-400');
+    });
+    if (btn) { btn.classList.add('nav-active', 'text-white'); btn.classList.remove('text-slate-400'); }
+    if (p === 'dash')   updateStats();
+    if (p === 'enroll') loadStudents();
+}
+
+// ─── CAMERA HELPERS ───────────────────────────────────────────────────────
+async function requestCam(videoId, placeholderId) {
+    // Check API support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showCamError("Browser camera support nahi karta. Chrome use karo.");
+        return null;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+            audio: false
+        });
+
+        const vid = document.getElementById(videoId);
+        vid.srcObject = stream;
+        vid.style.display = 'block';
+
+        // Hide placeholder
+        const ph = document.getElementById(placeholderId);
+        if (ph) ph.style.display = 'none';
+
+        // Wait until video is actually playing
+        await new Promise((resolve, reject) => {
+            vid.onloadedmetadata = () => { vid.play().then(resolve).catch(reject); };
+            setTimeout(() => reject(new Error("Camera timeout")), 8000);
+        });
+
+        return stream;
+    } catch (e) {
+        let msg = "Camera error!";
+        if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+            msg = "Camera permission denied!\n\nBrowser address bar mein camera icon pe click karo aur Allow karo.";
+        } else if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") {
+            msg = "Koi camera nahi mila! USB webcam connect hai?";
+        } else if (e.name === "NotReadableError" || e.name === "TrackStartError") {
+            msg = "Camera already kisi aur app mein use ho raha hai!\nZoom / Teams / OBS band karo aur dobara try karo.";
+        } else if (e.name === "OverconstrainedError") {
+            msg = "Camera resolution support nahi karta. Default se try karo.";
+        } else {
+            msg = "Camera error: " + e.message;
+        }
+        alert(msg);
+        return null;
+    }
+}
+
+function stopStream(stream) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+}
+
+function showCamError(msg) { alert(msg); }
+
+// ─── ENROLLMENT CAMERA ────────────────────────────────────────────────────
+async function startEnrollCam() {
+    // Stop previous stream if any
+    if (enrollStream) { stopStream(enrollStream); enrollStream = null; }
+
+    const btn = document.getElementById('enroll-cam-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Opening...';
+
+    enrollStream = await requestCam('enroll-video', 'enroll-placeholder');
+
+    if (enrollStream) {
+        btn.innerHTML = '<i class="fas fa-check mr-2"></i> Camera On';
+        btn.className = 'flex-1 bg-green-600 text-white py-4 rounded-2xl font-bold';
+    } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-camera mr-2"></i> Start Camera';
+    }
+}
+
+// ─── ENROLLMENT ───────────────────────────────────────────────────────────
+async function enrollStudent() {
+    const vid  = document.getElementById('enroll-video');
+    const name = document.getElementById('en-name').value.trim();
+    const roll = document.getElementById('en-roll').value.trim();
+
+    if (!name || !roll) { alert("Name aur Roll Number zaroori hai!"); return; }
+    if (!enrollStream || !vid.videoWidth) { alert("Pehle camera start karo!"); return; }
+
+    // Capture frame
+    const can = document.getElementById('hidden-canvas');
+    can.width  = vid.videoWidth;
+    can.height = vid.videoHeight;
+    // Draw mirrored back to normal (undo the CSS scaleX -1)
+    const ctx = can.getContext('2d');
+    ctx.save();
+    ctx.translate(can.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(vid, 0, 0);
+    ctx.restore();
+
+    // Show preview
+    document.getElementById('capture-img').src = can.toDataURL('image/jpeg');
+    document.getElementById('capture-preview').classList.remove('hidden');
+
+    can.toBlob(async (blob) => {
+        const fd = new FormData();
+        fd.append('images', blob, 'face.jpg');
+
+        try {
+            await axios.post(
+                `${API}/enrollment/student/upload?name=${encodeURIComponent(name)}&roll_no=${encodeURIComponent(roll)}`,
+                fd
+            );
+            alert(`✅ ${name} successfully enrolled!`);
+            document.getElementById('en-name').value = '';
+            document.getElementById('en-roll').value = '';
+            document.getElementById('capture-preview').classList.add('hidden');
+            loadStudents();
+        } catch (e) {
+            const detail = e.response?.data?.detail || e.message;
+            alert("❌ Enrollment failed: " + detail);
+            console.error(e);
+        }
+    }, 'image/jpeg', 0.92);
+}
+
+// ─── STUDENTS LIST ────────────────────────────────────────────────────────
+async function loadStudents() {
+    try {
+        const res = await axios.get(`${API}/enrollment/students`);
+        const list = document.getElementById('students-list');
+        list.innerHTML = '';
+
+        if (!res.data.length) {
+            list.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">Koi student enrolled nahi hai!</p>';
+            return;
+        }
+
+        res.data.forEach(s => {
+            const div = document.createElement('div');
+            div.className = "flex justify-between items-center p-3 bg-slate-50 rounded-xl";
+            div.innerHTML = `
+                <div>
+                    <p class="font-bold text-slate-700">${s.name}</p>
+                    <p class="text-xs text-slate-400">Roll: ${s.roll_no}</p>
+                </div>
+                <button onclick="deleteStudent('${s.id}','${s.name}')" class="text-red-400 hover:text-red-600 text-sm p-2">
+                    <i class="fas fa-trash"></i>
+                </button>`;
+            list.appendChild(div);
+        });
+    } catch (e) { console.error("Students load failed:", e); }
+}
+
+async function deleteStudent(id, name) {
+    if (!confirm(`${name} ko delete karna chahte ho?`)) return;
+    try {
+        await axios.delete(`${API}/enrollment/student/${id}`);
+        alert(`${name} deleted!`);
+        loadStudents();
+    } catch (e) { alert("Delete failed! " + (e.response?.data?.detail || e.message)); }
+}
+
+// ─── DETECTION CANVAS ────────────────────────────────────────────────────
+function drawBBoxes(canvas, video, results) {
+    // Sync canvas size to video display size (not video resolution)
+    const rect = video.getBoundingClientRect();
+    canvas.width  = video.videoWidth  || rect.width;
+    canvas.height = video.videoHeight || rect.height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const colorMap = {
+        CONFIRMED: '#22c55e',
+        UNCERTAIN: '#eab308',
+        UNKNOWN:   '#ef4444',
+        SPOOF:     '#ef4444'
+    };
+    const labelMap = {
+        CONFIRMED: '✓',
+        UNCERTAIN: '?',
+        UNKNOWN:   'Unknown',
+        SPOOF:     'Spoof!'
+    };
+
+    results.forEach(r => {
+        if (!r.bbox) return;
+        const [x1, y1, x2, y2] = r.bbox;
+        const color = colorMap[r.status] || '#ef4444';
+        const name  = r.student_name || labelMap[r.status] || 'Unknown';
+        const conf  = r.confidence ? ` ${(r.confidence * 100).toFixed(0)}%` : '';
+        const label = `${name}${conf}`;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = 2.5;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+        ctx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
+        const tw    = ctx.measureText(label).width;
+        const lbY   = y1 > 26 ? y1 - 6 : y2 + 20;
+        ctx.fillStyle = color;
+        ctx.fillRect(x1, lbY - 17, tw + 10, 21);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x1 + 5, lbY);
+    });
+}
+
+// ─── LIVE DETECTION LOOP ─────────────────────────────────────────────────
+function startLiveDetection() {
+    const vid    = document.getElementById('live-video');
+    const canvas = document.getElementById('detection-canvas');
+    const hidden = document.getElementById('hidden-canvas');
+
+    liveDetectionInterval = setInterval(async () => {
+        if (!liveStream || !vid.videoWidth) return;
+
+        hidden.width  = vid.videoWidth;
+        hidden.height = vid.videoHeight;
+        const ctx = hidden.getContext('2d');
+        ctx.save(); ctx.translate(hidden.width, 0); ctx.scale(-1, 1);
+        ctx.drawImage(vid, 0, 0);
+        ctx.restore();
+
+        hidden.toBlob(async (blob) => {
+            const fd = new FormData();
+            fd.append('image', blob, 'frame.jpg');
+            try {
+                const res = await axios.post(`${API}/recognition/scan`, fd);
+                drawBBoxes(canvas, vid, res.data.results || []);
+                (res.data.results || []).forEach(s => {
+                    if (s.student_name && !presentSet.has(s.student_name)) {
+                        presentSet.add(s.student_name);
+                        addToAttendanceList(s.student_name, s.status, s.confidence);
+                    }
+                });
+            } catch (e) { console.warn("Live detection error:", e.message); }
+        }, 'image/jpeg', 0.85);
+
+    }, 2000); // Every 2 seconds
+}
+
+function stopLiveDetection() {
+    if (liveDetectionInterval) { clearInterval(liveDetectionInterval); liveDetectionInterval = null; }
+    const canvas = document.getElementById('detection-canvas');
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ─── SESSION START ────────────────────────────────────────────────────────
+async function startSession() {
+    const dur     = parseInt(document.getElementById('class-duration').value);
+    const subject = document.getElementById('class-subject').value.trim() || "Live Class";
+
+    if (!dur || dur < 1) { alert("Valid duration daalo!"); return; }
+    if (liveStream)      { alert("Session already chal raha hai!"); return; }
+
+    // 1. Start class on backend
+    try {
+        const res = await axios.post(`${API}/teacher/class/start`, {
+            subject, duration_minutes: dur
+        });
+        currentClassId = res.data.class_id;
+        localStorage.setItem('current_class_id', currentClassId);
+    } catch (e) {
+        alert("Class start API failed: " + (e.response?.data?.detail || e.message));
+        return;
+    }
+
+    // 2. Start camera
+    liveStream = await requestCam('live-video', 'live-placeholder');
+    if (!liveStream) {
+        // Rollback — end class on backend
+        try { await axios.post(`${API}/teacher/class/end/${currentClassId}`, {}); } catch (_) {}
+        currentClassId = null;
+        return;
+    }
+
+    // 3. UI updates
+    document.getElementById('scan-line').style.display = 'block';
+    setStatusBadge("LIVE SESSION", "green");
+    document.getElementById('timer-card').classList.remove('hidden');
+    document.getElementById('live-list').innerHTML = '';
+    presentSet.clear();
+    timeLeft = dur * 60;
+    updateTimerUI();
+
+    // 4. Entry scan
+    await runManualScan();
+
+    // 5. Start detection loop
+    startLiveDetection();
+
+    // 6. Countdown
+    sessionTimer = setInterval(async () => {
+        timeLeft--;
+        updateTimerUI();
+        if (timeLeft <= 0) await endSession();
+    }, 1000);
+}
+
+// ─── SESSION END ──────────────────────────────────────────────────────────
+async function endSession() {
+    if (!currentClassId && !liveStream) { alert("Koi session nahi chal raha!"); return; }
+
+    // 1. Stop detection + timer
+    stopLiveDetection();
+    clearInterval(sessionTimer);
+    sessionTimer = null;
+
+    // 2. Final scan
+    await runManualScan();
+
+    // 3. Stop camera
+    stopStream(liveStream);
+    liveStream = null;
+    const vid = document.getElementById('live-video');
+    vid.srcObject = null;
+    vid.style.display = 'none';
+    document.getElementById('live-placeholder').style.display = 'flex';
+    document.getElementById('scan-line').style.display = 'none';
+
+    // 4. End class on backend
+    if (currentClassId) {
+        try {
+            await axios.post(`${API}/teacher/class/end/${currentClassId}`, {});
+            alert(`✅ Session ended! Class ID: ${currentClassId}`);
+        } catch (e) {
+            console.error("End session failed:", e);
+        }
+        localStorage.removeItem('current_class_id');
+        currentClassId = null;
+    }
+
+    setStatusBadge("CLASS FINISHED", "blue");
+    document.getElementById('timer-card').classList.add('hidden');
+}
+
+// ─── MANUAL SNAP SCAN ────────────────────────────────────────────────────
+async function runManualScan() {
+    const vid = document.getElementById('live-video');
+    if (!liveStream || !vid.videoWidth) {
+        console.warn("Scan skipped — camera not ready");
+        return;
+    }
+
+    const can = document.getElementById('hidden-canvas');
+    can.width  = vid.videoWidth;
+    can.height = vid.videoHeight;
+    const ctx  = can.getContext('2d');
+    ctx.save(); ctx.translate(can.width, 0); ctx.scale(-1, 1);
+    ctx.drawImage(vid, 0, 0);
+    ctx.restore();
+
+    await new Promise(resolve => {
+        can.toBlob(async (blob) => {
+            const fd = new FormData();
+            fd.append('image', blob, 'snap.jpg');
+            try {
+                const res = await axios.post(`${API}/recognition/scan`, fd);
+                (res.data.results || []).forEach(s => {
+                    if (s.student_name && !presentSet.has(s.student_name)) {
+                        presentSet.add(s.student_name);
+                        addToAttendanceList(s.student_name, s.status, s.confidence);
+                    }
+                });
+            } catch (e) { console.warn("Manual scan error:", e.message); }
+            resolve();
+        }, 'image/jpeg', 0.92);
+    });
+}
+
+// ─── ATTENDANCE LIST ──────────────────────────────────────────────────────
+function addToAttendanceList(name, status, confidence) {
+    const map = {
+        CONFIRMED: { bg: "green",  icon: "check-circle",      label: "Present"   },
+        UNCERTAIN: { bg: "yellow", icon: "exclamation-circle", label: "Uncertain" },
+        UNKNOWN:   { bg: "red",    icon: "times-circle",       label: "Unknown"   },
+        SPOOF:     { bg: "red",    icon: "ban",                label: "Spoof!"    }
+    };
+    const c    = map[status] || map["UNKNOWN"];
+    const conf = confidence ? ` ${(confidence * 100).toFixed(0)}%` : '';
+    const div  = document.createElement('div');
+    div.className = `p-4 bg-${c.bg}-50 border-l-4 border-${c.bg}-500 rounded-2xl font-bold shadow-sm flex justify-between items-center`;
+    div.innerHTML  = `
+        <span class="text-${c.bg}-900"><i class="fas fa-${c.icon} mr-2"></i>${name}</span>
+        <span class="text-[9px] uppercase text-${c.bg}-400">${c.label}${conf}</span>`;
+    document.getElementById('live-list').prepend(div);
+}
+
+// ─── TIMER ────────────────────────────────────────────────────────────────
+function updateTimerUI() {
+    const m = Math.floor(timeLeft / 60);
+    const s = timeLeft % 60;
+    document.getElementById('timer-display').innerText =
+        `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ─── STATUS BADGE ─────────────────────────────────────────────────────────
+function setStatusBadge(text, color) {
+    const el = document.getElementById('status-badge');
+    const map = {
+        green: "bg-green-100 text-green-600",
+        blue:  "bg-blue-100 text-blue-600",
+        slate: "bg-slate-200 text-slate-500"
+    };
+    el.className = `${map[color] || map.slate} px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest`;
+    el.innerText = text;
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────
+let chartInstance = null;
+function initDashboard() {
+    if (chartInstance) { chartInstance.destroy(); }
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            datasets: [{
+                label: 'Presence Rate (%)',
+                data: [85, 95, 78, 100, 92],
+                borderColor: '#2563eb',
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(37,99,235,0.06)'
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: true } } }
+    });
+    updateStats();
+}
+
+async function updateStats() {
+    try {
+        const res = await axios.get(`${API}/enrollment/students`);
+        document.getElementById('stat-total').innerText = res.data.length;
+    } catch (e) { console.error("Stats update failed:", e); }
+}
+
+// ─── DOWNLOAD REPORT ─────────────────────────────────────────────────────
+async function downloadReport() {
+    const classId = document.getElementById('report-class-id').value.trim()
+                 || localStorage.getItem('current_class_id');
+    if (!classId) { alert("Class ID daalo!"); return; }
+
+    try {
+        const res = await axios.get(`${API}/teacher/attendance/${classId}`);
+        let csv = "Roll No,Name,Status,Confidence,Strikes\n";
+        (res.data.report || []).forEach(s => {
+            csv += `${s.roll_no},${s.student_name},${s.status},${s.confidence || '-'},${s.strikes}\n`;
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = `attendance_${classId}.csv`;
+        a.click();
+    } catch (e) {
+        alert("Report download failed: " + (e.response?.data?.detail || e.message));
+    }
+}
+
+// ─── LOGOUT ───────────────────────────────────────────────────────────────
+function logout() {
+    stopStream(enrollStream);
+    stopStream(liveStream);
+    stopLiveDetection();
+    clearInterval(sessionTimer);
+    localStorage.clear();
+    delete axios.defaults.headers.common['Authorization'];
+    location.reload();
+}
+
+// ─── AUTO LOGIN ───────────────────────────────────────────────────────────
+window.onload = () => {
+    token = localStorage.getItem('token');
+    if (token) {
+        setAuthHeader();
+        const name = localStorage.getItem('teacher_name') || 'Teacher';
+        enterApp(name);
+    }
+};
+</script>
+</body>
+</html>
