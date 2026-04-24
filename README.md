@@ -108,7 +108,7 @@ Class Start
     ↓
 Entry Scan (0-10 min)
     ↓
-Random Mid Scans (2-3 baar)
+Random Mid Scans (2-3 times)
     ↓
 Exit Scan (last 10 min)
     ↓
